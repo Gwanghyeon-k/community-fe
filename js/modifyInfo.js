@@ -4,12 +4,11 @@ import Header from '../component/header/header.js';
 import {
     authCheck,
     prependChild,
-    getServerUrl,
     resolveImageUrl,
     validNickname,
 } from '../utils/function.js';
 import { userModify, userDelete } from '../api/modifyInfoRequest.js';
-import { requestJson } from '../utils/request.js';
+import { clearAuth, getServerUrl, requestJson } from '../utils/request.js';
 
 const emailTextElement = document.querySelector('#id');
 const nicknameInputElement = document.querySelector('#nickname');
@@ -22,8 +21,7 @@ const resultElement = document.querySelector('.inputBox p[name="result"]');
 const modifyBtnElement = document.querySelector('#signupBtn');
 const profilePreview = document.querySelector('#profilePreview');
 const removeProfileButton = document.querySelector('#removeProfileButton');
-const authDataReponse = await authCheck();
-const authData = await authDataReponse.json();
+const authData = await authCheck();
 const changeData = {
     nickname: authData.data.nickname,
     profileImageUrl: authData.data.profileImageUrl,
@@ -31,7 +29,6 @@ const changeData = {
 
 const DEFAULT_PROFILE_IMAGE = '../public/image/profile/default.jpg';
 const HTTP_OK = 200;
-const HTTP_CREATED = 201;
 
 const setData = data => {
     if (
@@ -124,12 +121,12 @@ const changeEventHandler = async (event, uid) => {
             if (removeProfileButton) removeProfileButton.style.display = 'none';
         } else {
             const formData = new FormData();
-            formData.append('profileImage', file);
+            formData.append('file', file);
 
             // 파일 업로드를 위한 POST 요청 실행
             try {
                 const { ok, data } = await requestJson(
-                    `${getServerUrl()}/v1/users/upload/profile-image`,
+                    `${getServerUrl()}/images/userprofile`,
                     {
                         method: 'POST',
                         body: formData,
@@ -139,11 +136,11 @@ const changeEventHandler = async (event, uid) => {
                 if (!ok) throw new Error('서버 응답 오류');
                 localStorage.setItem(
                     'profileImageUrl',
-                    data.profileImageUrl,
+                    data.imageUrl,
                 );
-                changeData.profileImageUrl = data.profileImageUrl;
+                changeData.profileImageUrl = data.imageUrl;
                 profilePreview.src = resolveImageUrl(
-                    data.profileImageUrl,
+                    data.imageUrl,
                     DEFAULT_PROFILE_IMAGE,
                 );
                 if (removeProfileButton)
@@ -165,7 +162,7 @@ const sendModifyData = async () => {
         } else {
             const { status } = await userModify(changeData);
 
-            if (status === HTTP_CREATED) {
+            if (status === HTTP_OK) {
                 localStorage.removeItem('profileImageUrl');
                 saveToastMessage('수정완료');
                 location.href = '/html/modifyInfo.html';
@@ -185,10 +182,10 @@ const deleteAccount = async () => {
 
         if (status === HTTP_OK) {
             try {
-                await requestJson(`${getServerUrl()}/v1/auth/logout`, {
-                    method: 'POST',
-                    credentials: 'include',
+                await requestJson(`${getServerUrl()}/auths`, {
+                    method: 'DELETE',
                 });
+                clearAuth();
             } catch (error) {
                 console.error('로그아웃 요청 실패:', error);
             }

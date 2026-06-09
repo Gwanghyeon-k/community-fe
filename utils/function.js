@@ -1,20 +1,11 @@
-export const getServerUrl = () => {
-    const configUrl =
-        typeof window !== 'undefined' &&
-        window.__APP_CONFIG__ &&
-        window.__APP_CONFIG__.API_BASE_URL
-            ? String(window.__APP_CONFIG__.API_BASE_URL).trim()
-            : '';
+import {
+    clearAuth,
+    getCurrentUserId,
+    getServerUrl,
+    requestJson,
+} from './request.js';
 
-    if (configUrl) {
-        return configUrl.replace(/\/+$/, '');
-    }
-
-    const host = window.location.hostname;
-    return host.includes('localhost')
-        ? 'http://localhost:3000'
-        : `http://${host}:3000`;
-};
+export { getServerUrl };
 
 export const resolveImageUrl = (url, fallback = null) => {
     if (!url) return fallback;
@@ -23,18 +14,21 @@ export const resolveImageUrl = (url, fallback = null) => {
 };
 
 export const serverSessionCheck = async () => {
-    const res = await fetch(`${getServerUrl()}/v1/auth/check`, {
-        method: 'GET',
-        credentials: 'include',
-    });
-    return res;
+    const userId = getCurrentUserId();
+    if (!userId) {
+        return { ok: false, status: 401, data: null };
+    }
+
+    return requestJson(`${getServerUrl()}/users/${userId}`);
 };
 
 export const authCheck = async () => {
     const HTTP_OK = 200;
     const response = await serverSessionCheck();
-    if (!response || response.status !== HTTP_OK)
+    if (!response || response.status !== HTTP_OK) {
+        clearAuth();
         location.href = '/html/login.html';
+    }
     return response;
 };
 

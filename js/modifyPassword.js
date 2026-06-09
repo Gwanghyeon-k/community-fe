@@ -3,19 +3,18 @@ import Dialog from '../component/dialog/dialog.js';
 import Header from '../component/header/header.js';
 import {
     authCheck,
-    getServerUrl,
     prependChild,
     resolveImageUrl,
     validPassword,
 } from '../utils/function.js';
+import { clearAuth, getServerUrl, requestJson } from '../utils/request.js';
 
 const button = document.querySelector('#signupBtn');
 
 const DEFAULT_PROFILE_IMAGE = '../public/image/profile/default.jpg';
-const HTTP_CREATED = 201;
+const HTTP_OK = 200;
 
-const dataResponse = await authCheck();
-const data = await dataResponse.json();
+const data = await authCheck();
 const profileImage = resolveImageUrl(
     data.data.profileImageUrl,
     DEFAULT_PROFILE_IMAGE,
@@ -98,12 +97,12 @@ const modifyPassword = async () => {
 
     const { status } = await changePassword(password);
 
-    if (status == HTTP_CREATED) {
+    if (status == HTTP_OK) {
         try {
-            await fetch(`${getServerUrl()}/v1/auth/logout`, {
-                method: 'POST',
-                credentials: 'include',
+            await requestJson(`${getServerUrl()}/auths`, {
+                method: 'DELETE',
             });
+            clearAuth();
         } catch (error) {
             console.error('로그아웃 요청 실패:', error);
         }

@@ -1,18 +1,17 @@
 import BoardItem from '../component/board/boardItem.js';
 import Dialog from '../component/dialog/dialog.js';
 import Header from '../component/header/header.js';
-import { authCheck, getServerUrl, prependChild, resolveImageUrl } from '../utils/function.js';
+import { authCheck, prependChild, resolveImageUrl } from '../utils/function.js';
 import { getPosts, searchPosts } from '../api/indexRequest.js';
 
 const DEFAULT_PROFILE_IMAGE = '../public/image/profile/default.jpg';
 const HTTP_NOT_AUTHORIZED = 401;
 const SCROLL_THRESHOLD = 0.9;
-const INITIAL_OFFSET = 5;
 const ITEMS_PER_LOAD = 5;
 const DEFAULT_SORT = 'recent';
 let currentKeyword = '';
 let currentSort = DEFAULT_SORT;
-let offset = 0;
+let lastPostId = 0;
 let isEnd = false;
 let isProcessing = false;
 
@@ -25,14 +24,14 @@ const updateSortVisibility = () => {
 };
 
 // getBoardItem 함수
-const getBoardItem = async (offsetValue = 0, limitValue = 5) => {
+const getBoardItem = async (lastPostIdValue = 0, sizeValue = 5) => {
     const result =
         currentKeyword.trim() === ''
-            ? await getPosts(offsetValue, limitValue)
+            ? await getPosts(lastPostIdValue, sizeValue)
             : await searchPosts(
                   currentKeyword,
-                  offsetValue,
-                  limitValue,
+                  lastPostIdValue,
+                  sizeValue,
                   currentSort,
               );
     if (!result.ok) {
@@ -47,14 +46,14 @@ const setBoardItem = boardData => {
         const itemsHtml = boardData
             .map(data =>
                 BoardItem(
-                    data.id,
-                    data.createdAt,
+                    data.postId,
+                    data.updatedAt,
                     data.title,
                     data.viewCount,
-                    data.author ? data.author.profileImageUrl : null,
-                    data.author ? data.author.nickname : null,
+                    data.profileImage,
+                    data.nickname,
                     data.commentCount,
-                    data.likeCount,
+                    data.likesCount,
                 ),
             )
             .join('');
@@ -75,17 +74,19 @@ const loadBoardItems = async ({ reset = false } = {}) => {
 
     try {
         if (reset) {
-            offset = 0;
+            lastPostId = 0;
             isEnd = false;
             resetBoardList();
         }
-        const items = await getBoardItem(offset, ITEMS_PER_LOAD);
+        const page = await getBoardItem(lastPostId, ITEMS_PER_LOAD);
+        const items = page && page.posts ? page.posts : [];
         if (!items || items.length === 0) {
             isEnd = true;
             return;
         }
         setBoardItem(items);
-        offset += ITEMS_PER_LOAD;
+        lastPostId = items[items.length - 1].postId;
+        isEnd = Boolean(page.isLast);
     } catch (error) {
         console.error('Error fetching items:', error);
         isEnd = true;
@@ -133,7 +134,7 @@ const addSortEvent = () => {
 
 // 스크롤 이벤트 추가
 const addInfinityScrollEvent = () => {
-    offset = INITIAL_OFFSET;
+    lastPostId = 0;
     isEnd = false;
     isProcessing = false;
 
@@ -149,15 +150,14 @@ const addInfinityScrollEvent = () => {
 
 const init = async () => {
     try {
-        const response = await authCheck();
-        const data = await response.json();
-        if (response.status === HTTP_NOT_AUTHORIZED) {
+        const result = await authCheck();
+        if (result.status === HTTP_NOT_AUTHORIZED) {
             window.location.href = '/html/login.html';
             return;
         }
 
         const profileImageUrl = resolveImageUrl(
-            data.data.profileImageUrl,
+            result.data.profileImageUrl,
             DEFAULT_PROFILE_IMAGE,
         );
 

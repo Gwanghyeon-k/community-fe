@@ -3,7 +3,6 @@ import Header from '../component/header/header.js';
 import {
     authCheck,
     getQueryString,
-    getServerUrl,
     prependChild,
     resolveImageUrl,
 } from '../utils/function.js';
@@ -54,8 +53,8 @@ const observeSignupData = () => {
 const getBoardData = () => {
     return {
         title: boardWrite.title,
-        content: boardWrite.content,
-        attachFileUrl:
+        description: boardWrite.content,
+        postImageUrl:
             localStorage.getItem('postFileUrl') === null
                 ? undefined
                 : localStorage.getItem('postFileUrl'),
@@ -78,7 +77,7 @@ const addBoard = async () => {
 
         if (status === HTTP_CREATED) {
             localStorage.removeItem('postFileUrl');
-            window.location.href = `/html/board.html?id=${data.insertId}`;
+            window.location.href = `/html/board.html?id=${data.postId}`;
         } else {
             const helperElement = contentHelpElement;
             helperElement.textContent = '제목, 내용을 모두 작성해주세요.';
@@ -138,13 +137,13 @@ const changeEventHandler = async (event, uid) => {
         }
 
         const formData = new FormData();
-        formData.append('postFile', file);
+        formData.append('file', file);
 
         // 파일 업로드를 위한 POST 요청 실행
         try {
             const { ok, data } = await fileUpload(formData);
             if (!ok) throw new Error('서버 응답 오류');
-            localStorage.setItem('postFileUrl', data.fileUrl);
+            localStorage.setItem('postFileUrl', data.imageUrl);
         } catch (error) {
             console.error('업로드 중 오류 발생:', error);
         }
@@ -190,9 +189,9 @@ const addEvent = () => {
 
 const setModifyData = data => {
     titleInput.value = data.title;
-    contentInput.value = data.content;
+    contentInput.value = data.description;
 
-    const fileUrl = data.fileUrl || resolveImageUrl(data.filePath);
+    const fileUrl = data.postImageUrl;
     if (fileUrl) {
         // fileUrl에서 파일 이름만 추출하여 표시
         const fileName = fileUrl.split('/').pop();
@@ -220,18 +219,17 @@ const setModifyData = data => {
     }
 
     boardWrite.title = data.title;
-    boardWrite.content = data.content;
+    boardWrite.content = data.description;
 
     observeSignupData();
 };
 
 const init = async () => {
-    const dataResponse = await authCheck();
-    const data = await dataResponse.json();
+    const authResult = await authCheck();
     const modifyId = checkModifyMode();
 
     const profileImage = resolveImageUrl(
-        data.data.profileImageUrl,
+        authResult.data.profileImageUrl,
         DEFAULT_PROFILE_IMAGE,
     );
 
@@ -241,7 +239,10 @@ const init = async () => {
         isModifyMode = true;
         modifyData = await getBoardModifyData(modifyId);
 
-        if (data.idx !== modifyData.writerId) {
+        if (
+            modifyData.author &&
+            modifyData.author.nickname !== authResult.data.nickname
+        ) {
             Dialog('권한 없음', '권한이 없습니다.', () => {
                 window.location.href = '/';
             });

@@ -1,28 +1,13 @@
 import { getServerUrl } from '../utils/function.js';
 import { requestJson } from '../utils/request.js';
 
-export const getPosts = (offset, limit) => {
+export const getPosts = (lastPostId = 0, size = 5) => {
     const result = requestJson(
-        `${getServerUrl()}/v1/posts?offset=${offset}&limit=${limit}`,
-        {
-            credentials: 'include',
-        },
+        `${getServerUrl()}/posts?lastPostId=${lastPostId}&size=${size}`,
     );
     return result;
 };
 
-export const searchPosts = (keyword, offset = 0, limit = 5, sort = 'recent') => {
-    const query = new URLSearchParams({
-        keyword,
-        offset,
-        limit,
-        sort,
-    });
-    const result = requestJson(
-        `${getServerUrl()}/v1/posts/search?${query.toString()}`,
-        {
-            credentials: 'include',
-        },
-    );
-    return result;
+export const searchPosts = (keyword, lastPostId = 0, size = 5, sort = 'recent') => {
+    return getPosts(lastPostId, size);
 };

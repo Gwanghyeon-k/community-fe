@@ -11,18 +11,19 @@ import {
     userSignup,
     checkEmail,
     checkNickname,
-    fileUpload,
 } from '../api/signupRequest.js';
+import { canSubmitSignup } from '../utils/signupValidation.js';
 
 const MAX_PASSWORD_LENGTH = 20;
 const HTTP_OK = 200;
 const HTTP_CREATED = 201;
+const DEFAULT_PROFILE_IMAGE_URL = `${window.location.origin}/public/image/profile/default.jpg`;
 
 const signupData = {
     email: '',
     password: '',
     nickname: '',
-    profileImageUrl: undefined,
+    profileImageUrl: DEFAULT_PROFILE_IMAGE_URL,
 };
 
 const getSignupData = () => {
@@ -37,11 +38,7 @@ const getSignupData = () => {
 
 const sendSignupData = async () => {
     const { passwordCheck, ...props } = signupData;
-    if (localStorage.getItem('profileImageUrl')) {
-        props.profileImageUrl = localStorage.getItem('profileImageUrl');
-    }
-
-    if (props.password > MAX_PASSWORD_LENGTH) {
+    if (props.password.length > MAX_PASSWORD_LENGTH) {
         Dialog('비밀번호', '비밀번호는 20자 이하로 입력해주세요.');
         return;
     }
@@ -53,11 +50,11 @@ const sendSignupData = async () => {
         localStorage.removeItem('profileImageUrl');
         location.href = '/html/login.html';
     } else {
-        if (code === 'ALREADY_EXIST_EMAIL') {
+        if (code === 'USER_409_1' || code === 'DUPLICATE_EMAIL') {
             Dialog('회원 가입 실패', '이미 사용 중인 이메일입니다.');
-        } else if (code === 'ALREADY_EXIST_NICKNAME') {
+        } else if (code === 'USER_409_2' || code === 'DUPLICATE_NICKNAME') {
             Dialog('회원 가입 실패', '이미 사용 중인 닉네임입니다.');
-        } else if (code === 'INVALID_INPUT') {
+        } else if (code === 'COMMON_400' || code === 'INVALID_INPUT') {
             Dialog('회원 가입 실패', '입력값을 확인해주세요.');
         } else {
             Dialog('회원 가입 실패', '잠시 뒤 다시 시도해 주세요', () => {});
@@ -81,7 +78,7 @@ const changeEventHandler = async (event, uid) => {
         const helperElement = document.querySelector(
             `.inputBox p[name="${uid}"]`,
         );
-        helperElement.textContent = '';
+        if (helperElement) helperElement.textContent = '';
     }
     observeSignupData();
 };
@@ -98,7 +95,7 @@ const inputEventHandler = async (event, uid) => {
         if (!helperElement) return;
 
         if (value == '' || value == null) {
-            helperElement.textContent = '*이메일을 입력해주세요.';
+            helperElement.textContent = '';
         } else if (!isValidEmail) {
             helperElement.textContent =
                 '*올바른 이메일 주소 형식을 입력해주세요. (예: example@example.com)';
@@ -210,18 +207,9 @@ const addEventForInputElements = () => {
 };
 
 const observeSignupData = () => {
-    const { email, password, passwordCheck, nickname } = signupData;
     const button = document.querySelector('#signupBtn');
 
-    if (
-        !email ||
-        !validEmail(email) ||
-        !password ||
-        !validPassword(password) ||
-        !nickname ||
-        !validNickname(nickname) ||
-        !passwordCheck
-    ) {
+    if (!canSubmitSignup(signupData)) {
         button.disabled = true;
         button.style.backgroundColor = '#ACA0EB';
     } else {
@@ -230,40 +218,12 @@ const observeSignupData = () => {
     }
 };
 
-const uploadProfileImage = () => {
-    document
-        .getElementById('profile')
-        .addEventListener('change', async event => {
-            const file = event.target.files[0];
-            if (!file) {
-                console.log('파일이 선택되지 않았습니다.');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('profileImage', file);
-
-            // 파일 업로드를 위한 POST 요청 실행
-            try {
-                const { ok, data } = await fileUpload(formData);
-                if (!ok) throw new Error('서버 응답 오류');
-                localStorage.setItem(
-                    'profileImageUrl',
-                    data.profileImageUrl,
-                );
-            } catch (error) {
-                console.error('업로드 중 오류 발생:', error);
-            }
-        });
-};
-
 const init = async () => {
     await authCheckReverse();
     prependChild(document.body, Header('커뮤니티', 1));
     observeSignupData();
     addEventForInputElements();
     signupClick();
-    uploadProfileImage();
 };
 
 init();

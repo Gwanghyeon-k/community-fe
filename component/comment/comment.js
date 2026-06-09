@@ -5,7 +5,7 @@ import { deleteComment, updateComment } from '../../api/commentRequest.js';
 const DEFAULT_PROFILE_IMAGE = '../public/image/profile/default.jpg';
 const HTTP_OK = 200;
 
-const CommentItem = (data, writerId, postId, commentId) => {
+const CommentItem = (data, currentNickname, postId, commentId) => {
     const CommentDelete = () => {
         Dialog(
             '댓글을 삭제하시겠습니까?',
@@ -63,9 +63,7 @@ const CommentItem = (data, writerId, postId, commentId) => {
             }
             // 서버로 수정된 댓글 내용 전송하는 로직
             const updatedContent = textarea.value;
-            const sendData = {
-                commentContent: updatedContent,
-            };
+            const sendData = { comment: updatedContent };
 
             const { ok } = await updateComment(postId, commentId, sendData);
             if (!ok)
@@ -101,7 +99,7 @@ const CommentItem = (data, writerId, postId, commentId) => {
     const img = document.createElement('img');
     img.className = 'commentImg';
     img.src = resolveImageUrl(
-        data.author && data.author.profileImageUrl,
+        data.profileImage,
         DEFAULT_PROFILE_IMAGE,
     );
     picture.appendChild(img);
@@ -113,18 +111,18 @@ const CommentItem = (data, writerId, postId, commentId) => {
     infoDiv.className = 'commentInfoHeader';
 
     const h3 = document.createElement('h3');
-    h3.textContent = data.author ? data.author.nickname : '';
+    h3.textContent = data.nickname || '';
     infoDiv.appendChild(h3);
 
     const h4 = document.createElement('h4');
-    const date = new Date(data.createdAt);
+    const date = new Date(data.updatedAt);
     const formattedDate = `${date.getFullYear()}-${padTo2Digits(date.getMonth() + 1)}-${padTo2Digits(date.getDate())} ${padTo2Digits(date.getHours())}:${padTo2Digits(date.getMinutes())}:${padTo2Digits(date.getSeconds())}`;
     h4.textContent = formattedDate;
     infoDiv.appendChild(h4);
 
     if (
-        data.author &&
-        parseInt(data.author.userId, 10) === parseInt(writerId, 10)
+        data.nickname &&
+        String(data.nickname) === String(currentNickname)
     ) {
         const buttonWrap = document.createElement('span');
 

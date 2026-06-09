@@ -3,7 +3,6 @@ import Dialog from '../component/dialog/dialog.js';
 import Header from '../component/header/header.js';
 import {
     authCheck,
-    getServerUrl,
     prependChild,
     padTo2Digits,
     resolveImageUrl,
@@ -16,6 +15,12 @@ import {
     likePost,
     unlikePost,
 } from '../api/boardRequest.js';
+import { isAlreadyLikedError, isLikeNotFoundError } from '../utils/likeError.js';
+import {
+    isPostLiked,
+    markPostLiked,
+    unmarkPostLiked,
+} from '../utils/likedPosts.js';
 
 const DEFAULT_PROFILE_IMAGE = '../public/image/profile/default.jpg';
 const MAX_COMMENT_LENGTH = 1000;
@@ -35,6 +40,13 @@ const setLikeButtonState = (button, isLiked) => {
     button.setAttribute('aria-pressed', isLiked ? 'true' : 'false');
 };
 
+const parseDisplayedCount = element =>
+    Number(element.textContent.replace(/,/g, '')) || 0;
+
+const setDisplayedLikeCount = (element, count) => {
+    element.textContent = formatCount(Math.max(count, 0));
+};
+
 const getQueryString = name => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get(name);
@@ -47,7 +59,7 @@ const getBoardDetail = async postId => {
     return data;
 };
 
-const setBoardDetail = data => {
+const setBoardDetail = (data, myInfo) => {
     // 헤드 정보
     const titleElement = document.querySelector('.title');
     const createdAtElement = document.querySelector('.createdAt');
@@ -55,20 +67,20 @@ const setBoardDetail = data => {
     const nicknameElement = document.querySelector('.nickname');
 
     titleElement.textContent = data.title;
-    const date = new Date(data.createdAt);
+    const date = new Date(data.updatedAt);
     const formattedDate = `${date.getFullYear()}-${padTo2Digits(date.getMonth() + 1)}-${padTo2Digits(date.getDate())} ${padTo2Digits(date.getHours())}:${padTo2Digits(date.getMinutes())}:${padTo2Digits(date.getSeconds())}`;
     createdAtElement.textContent = formattedDate;
 
     imgElement.src = resolveImageUrl(
-        data.profileImage,
+        data.author && data.author.profileImage,
         DEFAULT_PROFILE_IMAGE,
     );
 
-    nicknameElement.textContent = data.nickname;
+    nicknameElement.textContent = data.author ? data.author.nickname : '';
 
     // 바디 정보
     const contentImgElement = document.querySelector('.contentImg');
-    const fileUrl = data.fileUrl || resolveImageUrl(data.filePath);
+    const fileUrl = data.postImageUrl;
     if (fileUrl) {
         console.log(fileUrl);
         const img = document.createElement('img');
@@ -76,14 +88,15 @@ const setBoardDetail = data => {
         contentImgElement.appendChild(img);
     }
     const contentElement = document.querySelector('.content');
-    contentElement.textContent = data.content;
+    contentElement.textContent = data.description;
 
     const likeButtonElement = document.querySelector('.likeButton');
     const likeCountElement = likeButtonElement.querySelector('h3');
-    let isLiked = Boolean(data.isLiked);
+    let isLiked =
+        Boolean(data.isLiked) || isPostLiked(myInfo && myInfo.id, data.postId);
     let isLikeLoading = false;
 
-    likeCountElement.textContent = formatCount(data.likeCount);
+    likeCountElement.textContent = formatCount(data.likesCount);
     setLikeButtonState(likeButtonElement, isLiked);
 
     likeButtonElement.addEventListener('click', async () => {
@@ -92,39 +105,50 @@ const setBoardDetail = data => {
 
         try {
             if (!isLiked) {
-                const { ok, status, code, data: likeData } = await likePost(
-                    data.id,
-                );
+                const { ok, status, code } = await likePost(data.postId);
                 if (ok) {
                     isLiked = true;
+                    markPostLiked(myInfo && myInfo.id, data.postId);
                     setLikeButtonState(likeButtonElement, isLiked);
-                    if (likeData && likeData.likeCount !== undefined) {
-                        likeCountElement.textContent = formatCount(
-                            likeData.likeCount,
-                        );
+                    setDisplayedLikeCount(
+                        likeCountElement,
+                        parseDisplayedCount(likeCountElement) + 1,
+                    );
+                } else if (isAlreadyLikedError({ status, code })) {
+                    const unlikeResult = await unlikePost(data.postId);
+                    if (!unlikeResult.ok) {
+                        if (unlikeResult.status === HTTP_NOT_AUTHORIZED) {
+                            window.location.href = '/html/login.html';
+                            return;
+                        }
+                        Dialog('좋아요 취소 실패', '좋아요 취소에 실패하였습니다.');
+                        return;
                     }
-                } else if (status === 409 && code === 'POST_ALREADY_LIKED') {
-                    isLiked = true;
+                    isLiked = false;
+                    unmarkPostLiked(myInfo && myInfo.id, data.postId);
                     setLikeButtonState(likeButtonElement, isLiked);
+                    setDisplayedLikeCount(
+                        likeCountElement,
+                        parseDisplayedCount(likeCountElement) - 1,
+                    );
                 } else if (status === HTTP_NOT_AUTHORIZED) {
                     window.location.href = '/html/login.html';
                 } else {
                     Dialog('좋아요 실패', '좋아요 처리에 실패하였습니다.');
                 }
             } else {
-                const { ok, status, code, data: likeData } = await unlikePost(
-                    data.id,
-                );
+                const { ok, status, code } = await unlikePost(data.postId);
                 if (ok) {
                     isLiked = false;
+                    unmarkPostLiked(myInfo && myInfo.id, data.postId);
                     setLikeButtonState(likeButtonElement, isLiked);
-                    if (likeData && likeData.likeCount !== undefined) {
-                        likeCountElement.textContent = formatCount(
-                            likeData.likeCount,
-                        );
-                    }
-                } else if (status === 409 && code === 'POST_ALREADY_UNLIKED') {
+                    setDisplayedLikeCount(
+                        likeCountElement,
+                        parseDisplayedCount(likeCountElement) - 1,
+                    );
+                } else if (isLikeNotFoundError({ status, code })) {
                     isLiked = false;
+                    unmarkPostLiked(myInfo && myInfo.id, data.postId);
                     setLikeButtonState(likeButtonElement, isLiked);
                 } else if (status === HTTP_NOT_AUTHORIZED) {
                     window.location.href = '/html/login.html';
@@ -141,11 +165,11 @@ const setBoardDetail = data => {
     viewCountElement.textContent = formatCount(data.viewCount);
 
     const commentCountElement = document.querySelector('.commentCount h3');
-    commentCountElement.textContent = data.commentCount.toLocaleString();
+    commentCountElement.textContent = '';
 };
 
 const setBoardModify = async (data, myInfo) => {
-    if (myInfo.idx === data.writerId) {
+    if (data.author && myInfo.nickname === data.author.nickname) {
         const modifyElement = document.querySelector('.hidden');
         modifyElement.classList.remove('hidden');
 
@@ -168,7 +192,7 @@ const setBoardModify = async (data, myInfo) => {
 
         const modifyBtnElement2 = document.querySelector('#modifyBtn');
         modifyBtnElement2.addEventListener('click', () => {
-            window.location.href = `/html/board-modify.html?postId=${data.id}`;
+            window.location.href = `/html/board-modify.html?postId=${data.postId}`;
         });
     }
 };
@@ -177,21 +201,26 @@ const getBoardComment = async id => {
     const { ok, status, data } = await getComments(id);
     if (!ok) return [];
     if (status !== HTTP_OK) return [];
-    return data;
+    return data && data.comments ? data.comments : [];
 };
 
-const setBoardComment = (data, myInfo) => {
+const setBoardComment = (postId, data, myInfo) => {
     const commentListElement = document.querySelector('.commentList');
     if (commentListElement) {
         data.map(event => {
             const item = CommentItem(
                 event,
-                myInfo.userId,
-                event.postId,
-                event.id,
+                myInfo.nickname,
+                postId,
+                event.commentId,
             );
             commentListElement.appendChild(item);
         });
+    }
+
+    const commentCountElement = document.querySelector('.commentCount h3');
+    if (commentCountElement) {
+        commentCountElement.textContent = data.length.toLocaleString();
     }
 };
 
@@ -231,9 +260,8 @@ const inputComment = async () => {
 
 const init = async () => {
     try {
-        const data = await authCheck();
-        const myInfoResult = await data.json();
-        if (data.status !== HTTP_OK) {
+        const myInfoResult = await authCheck();
+        if (myInfoResult.status !== HTTP_OK) {
             throw new Error('사용자 정보를 불러오는데 실패하였습니다.');
         }
 
@@ -246,7 +274,7 @@ const init = async () => {
         commentBtnElement.addEventListener('click', addComment);
         commentBtnElement.disabled = true;
         console.log(myInfo);
-        if (data.status === HTTP_NOT_AUTHORIZED) {
+        if (myInfoResult.status === HTTP_NOT_AUTHORIZED) {
             window.location.href = '/html/login.html';
         }
         const profileImage = resolveImageUrl(
@@ -260,12 +288,14 @@ const init = async () => {
 
         const pageData = await getBoardDetail(pageId);
 
-        if (parseInt(pageData.userId, 10) === parseInt(myInfo.userId, 10)) {
+        if (pageData.author && pageData.author.nickname === myInfo.nickname) {
             setBoardModify(pageData, myInfo);
         }
-        setBoardDetail(pageData);
+        setBoardDetail(pageData, myInfo);
 
-        getBoardComment(pageId).then(data => setBoardComment(data, myInfo));
+        getBoardComment(pageId).then(data =>
+            setBoardComment(pageId, data, myInfo),
+        );
     } catch (error) {
         console.error(error);
     }
