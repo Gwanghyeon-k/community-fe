@@ -9,6 +9,7 @@ import {
 } from '../utils/function.js';
 import { userModify, userDelete } from '../api/modifyInfoRequest.js';
 import { clearAuth, getServerUrl, requestJson } from '../utils/request.js';
+import { validateImageFile } from '../utils/imageFileValidation.js';
 
 const emailTextElement = document.querySelector('#id');
 const nicknameInputElement = document.querySelector('#nickname');
@@ -120,6 +121,12 @@ const changeEventHandler = async (event, uid) => {
             changeData.profileImageUrl = null;
             if (removeProfileButton) removeProfileButton.style.display = 'none';
         } else {
+            const validation = validateImageFile(file);
+            if (!validation.ok) {
+                profileInputElement.value = '';
+                return Dialog('이미지 업로드 실패', validation.message);
+            }
+
             const formData = new FormData();
             formData.append('file', file);
 
@@ -133,7 +140,9 @@ const changeEventHandler = async (event, uid) => {
                     },
                 );
 
-                if (!ok) throw new Error('서버 응답 오류');
+                if (!ok) {
+                    throw new Error(data?.message || '서버 응답 오류');
+                }
                 localStorage.setItem(
                     'profileImageUrl',
                     data.imageUrl,

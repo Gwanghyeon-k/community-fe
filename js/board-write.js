@@ -12,6 +12,7 @@ import {
     updatePost,
     getBoardItem,
 } from '../api/board-writeRequest.js';
+import { validateImageFile } from '../utils/imageFileValidation.js';
 
 const HTTP_OK = 200;
 const HTTP_CREATED = 201;
@@ -136,16 +137,29 @@ const changeEventHandler = async (event, uid) => {
             return;
         }
 
+        const validation = validateImageFile(file);
+        if (!validation.ok) {
+            imageInput.value = '';
+            localStorage.removeItem('postFileUrl');
+            return Dialog('이미지 업로드 실패', validation.message);
+        }
+
         const formData = new FormData();
         formData.append('file', file);
 
         // 파일 업로드를 위한 POST 요청 실행
         try {
-            const { ok, data } = await fileUpload(formData);
-            if (!ok) throw new Error('서버 응답 오류');
+            const { ok, data, message, status } = await fileUpload(formData);
+            if (!ok) {
+                throw new Error(message || `서버 응답 오류 (${status})`);
+            }
             localStorage.setItem('postFileUrl', data.imageUrl);
         } catch (error) {
             console.error('업로드 중 오류 발생:', error);
+            Dialog(
+                '이미지 업로드 실패',
+                '이미지 업로드에 실패했습니다. 잠시 후 다시 시도해주세요.',
+            );
         }
     } else if (uid === 'imagePreviewText') {
         localStorage.removeItem('postFileUrl');
