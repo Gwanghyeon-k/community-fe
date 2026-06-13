@@ -22,7 +22,7 @@ export const checkNickname = async nickname => {
 };
 
 export const fileUpload = async file => {
-    const result = await requestJson(`${getServerUrl()}/images/userprofile`, {
+    const result = await requestJson(`${getServerUrl()}/images/userprofiles`, {
         method: 'POST',
         body: file,
     });
