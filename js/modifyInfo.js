@@ -1,4 +1,4 @@
-import { checkNickname } from '../api/signupRequest.js';
+import { checkNickname } from '../requests/signupRequest.js';
 import Dialog from '../component/dialog/dialog.js';
 import Header from '../component/header/header.js';
 import {
@@ -7,7 +7,7 @@ import {
     resolveImageUrl,
     validNickname,
 } from '../utils/function.js';
-import { userModify, userDelete } from '../api/modifyInfoRequest.js';
+import { userModify, userDelete } from '../requests/modifyInfoRequest.js';
 import { clearAuth, getServerUrl, requestJson } from '../utils/request.js';
 import { validateImageFile } from '../utils/imageFileValidation.js';
 

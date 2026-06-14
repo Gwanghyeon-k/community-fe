@@ -11,7 +11,7 @@ import {
     fileUpload,
     updatePost,
     getBoardItem,
-} from '../api/board-writeRequest.js';
+} from '../requests/board-writeRequest.js';
 import { validateImageFile } from '../utils/imageFileValidation.js';
 
 const HTTP_OK = 200;

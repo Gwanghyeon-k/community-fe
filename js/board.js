@@ -14,7 +14,7 @@ import {
     getComments,
     likePost,
     unlikePost,
-} from '../api/boardRequest.js';
+} from '../requests/boardRequest.js';
 import { isAlreadyLikedError, isLikeNotFoundError } from '../utils/likeError.js';
 import {
     isPostLiked,

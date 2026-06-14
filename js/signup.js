@@ -11,7 +11,7 @@ import {
     userSignup,
     checkEmail,
     checkNickname,
-} from '../api/signupRequest.js';
+} from '../requests/signupRequest.js';
 import { canSubmitSignup } from '../utils/signupValidation.js';
 
 const MAX_PASSWORD_LENGTH = 20;
